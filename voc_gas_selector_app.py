@@ -1,41 +1,89 @@
 
 import streamlit as st
+import requests
+import openai
 
-st.set_page_config(page_title="Verified Nanomaterials for Gases & VOCs", layout="centered")
-st.title("🔬 Verified Nanomaterials for Selective Gas & VOC Sensing")
+# --- SETUP YOUR API KEYS ---
+GOOGLE_API_KEY = "YOUR_GOOGLE_API_KEY"
+CSE_ID = "YOUR_CUSTOM_SEARCH_ENGINE_ID"
+OPENAI_API_KEY = "YOUR_OPENAI_KEY"
 
-st.markdown("Choose a known gas or VOC for which nanomaterial-based sensing has been documented in scientific literature.")
+openai.api_key = OPENAI_API_KEY
 
-category = st.radio("Select Type of Target:", ["Inorganic Gases", "Volatile Organic Compounds (VOCs)"])
+# --- FULL LIST OF 100 ANALYTES ---
+common_gases = [
+    "Ammonia (NH₃)", "Hydrogen Sulfide (H₂S)", "Nitrogen Dioxide (NO₂)", "Nitric Oxide (NO)", "Sulfur Dioxide (SO₂)",
+    "Carbon Monoxide (CO)", "Carbon Dioxide (CO₂)", "Methane (CH₄)", "Hydrogen (H₂)", "Oxygen (O₂)", "Ozone (O₃)",
+    "Chlorine (Cl₂)", "Bromine (Br₂)", "Fluorine (F₂)", "Iodine (I₂)", "Hydrogen Fluoride (HF)", "Hydrogen Chloride (HCl)",
+    "Hydrogen Cyanide (HCN)", "Arsine (AsH₃)", "Phosphine (PH₃)", "Silane (SiH₄)", "Diborane (B₂H₆)", "Nitrous Oxide (N₂O)",
+    "Ethylene (C₂H₄)", "Acetylene (C₂H₂)", "Radon (Rn)", "Helium (He)", "Neon (Ne)", "Argon (Ar)", "Krypton (Kr)",
+    "Xenon (Xe)", "Isobutylene", "Ethane (C₂H₆)", "Propane (C₃H₈)", "Butane (C₄H₁₀)", "Dimethyl Ether (DME)",
+    "Hydrogen Peroxide (H₂O₂ vapor)", "Sulfur Hexafluoride (SF₆)", "Amine vapors", "Nitrosyl Chloride (NOCl)"
+]
 
-# Only include analytes with verified nanomaterials and reference links
-verified_gases = {
-    "Ammonia (NH3)": ("WO3 Nanowires", "https://doi.org/10.1016/j.snb.2019.127026"),
-    "Hydrogen Sulfide (H2S)": ("SnO2 Quantum Dots", "https://doi.org/10.1016/j.snb.2020.128245"),
-    "Nitrogen Dioxide (NO2)": ("Graphene Oxide", "https://doi.org/10.1016/j.snb.2018.12.075"),
-    "Carbon Monoxide (CO)": ("Pd-doped ZnO", "https://doi.org/10.1016/j.snb.2016.07.101")
-}
+common_vocs = [
+    "Acetone", "Ethanol", "Methanol", "Toluene", "Benzene", "Xylene", "Formaldehyde", "Acetic Acid", "Isopropanol",
+    "Chloroform", "Styrene", "Phenol", "Hexane", "Heptane", "Octane", "Nonane", "Decane", "Cyclohexane",
+    "2-Butanone (MEK)", "2-Propanol", "1-Propanol", "Ethyl Acetate", "Butyl Acetate", "Methyl Acetate",
+    "Diethyl Ether", "Dimethylformamide (DMF)", "Dimethyl Sulfoxide (DMSO)", "Vinyl Acetate", "Vinyl Chloride",
+    "Carbon Disulfide", "1,2-Dichlorobenzene", "1,4-Dioxane", "Limonene", "α-Pinene", "β-Pinene", "Terpineol",
+    "Tetrahydrofuran (THF)", "Furfural", "Cresol", "Aniline", "Pyridine", "Thiophene", "Acetonitrile", "Naphthalene",
+    "Isobutanol", "Butanol", "Ethylene Glycol", "Propylene Glycol", "Allyl Alcohol", "Butyraldehyde",
+    "Isovaleraldehyde", "Benzaldehyde", "Methyl Isobutyl Ketone (MIBK)", "Acrolein", "Diisocyanates (e.g., TDI)",
+    "Tetrachloroethylene (PCE)", "Trichloroethylene (TCE)", "Methyl Tertiary Butyl Ether (MTBE)", "Nitromethane",
+    "1,2-Dichloroethane"
+]
 
-verified_vocs = {
-    "Methanol": ("TiO2 Nanotubes", "https://doi.org/10.1016/j.snb.2015.11.093"),
-    "Ethanol": ("ZnO Nanorods", "https://doi.org/10.1016/j.snb.2019.127009"),
-    "Acetone": ("In2O3 Nanoparticles", "https://doi.org/10.1016/j.snb.2014.04.068"),
-    "Formaldehyde": ("TiO2 Nanotubes", "https://doi.org/10.1016/j.snb.2013.11.020"),
-    "Toluene": ("SnO2 Hollow Spheres", "https://doi.org/10.1016/j.snb.2013.03.107")
-}
+analytes = common_gases + common_vocs
 
-if category == "Inorganic Gases":
-    analyte_options = list(verified_gases.keys())
-    selected_analyte = st.selectbox("Choose your target gas:", analyte_options)
-    material, ref = verified_gases[selected_analyte]
-else:
-    analyte_options = list(verified_vocs.keys())
-    selected_analyte = st.selectbox("Choose your target VOC:", analyte_options)
-    material, ref = verified_vocs[selected_analyte]
+# --- STREAMLIT UI ---
+st.set_page_config(page_title="Nanomaterial Selector AI", layout="centered")
+st.title("🔬 AI-Powered Nanomaterial Recommender for Gas/VOC Sensing")
 
-if st.button("🔍 Show Recommended Nanomaterial"):
-    st.success(f"Recommended Nanomaterial for **{selected_analyte}**: **{material}**")
-    st.markdown(f"📄 [Read the research article]({ref})")
+target = st.selectbox("Select a gas or VOC:", analytes)
 
-st.markdown("---")
-st.markdown("📬 For technical support or procurement, contact us at [support@schnaiffer.com](mailto:support@schnaiffer.com)")
+if st.button("🔍 Search & Get Nanomaterial Suggestion"):
+    st.info("Searching Google for scholarly results...")
+
+    query = f"{target} gas sensor selective nanomaterial site:researchgate.net OR site:nature.com OR site:sciencedirect.com"
+
+    google_url = "https://www.googleapis.com/customsearch/v1"
+    params = {
+        "key": GOOGLE_API_KEY,
+        "cx": CSE_ID,
+        "q": query,
+        "num": 10
+    }
+
+    response = requests.get(google_url, params=params)
+    results = response.json().get("items", [])
+
+    combined_text = ""
+    for i, item in enumerate(results):
+        title = item.get("title", "")
+        snippet = item.get("snippet", "")
+        link = item.get("link", "")
+        combined_text += f"{i+1}. {title}\n{snippet}\n{link}\n\n"
+
+    if not combined_text:
+        st.warning("No search results found.")
+    else:
+        st.info("Analyzing results using AI...")
+
+        prompt = f"""
+You are an expert in nanomaterial-based gas sensors. Based on the following search results, suggest the best nanomaterial for selectively detecting {target}. Be specific, and mention any promising material if supported by evidence.
+
+Results:
+{combined_text}
+        """
+
+        gpt_response = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=350
+        )
+
+        suggestion = gpt_response["choices"][0]["message"]["content"]
+
+        st.success(f"📌 AI Suggestion for {target}:")
+        st.markdown(suggestion)
